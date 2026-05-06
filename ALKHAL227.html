@@ -1,0 +1,1909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALKHAL227 — Statistical Analysis Engine</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* ── RESET & ROOT ────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* ── ALKHAL brand palette (design system v2) ── */
+  --cyan:      #22D3EE;
+  --cyan-dim:  #0EA5C9;
+  --blue:      #0A84FF;
+  --blue-deep: #1E3A8A;
+  --indigo:    #4F46E5;
+  --purple:    #6D28D9;
+  --violet:    #7C3AED;
+  --gold:      #F59E0B;
+  --gold-dim:  #D97706;
+
+  --bg:        #0B0F19;
+  --bg-2:      #111827;
+  --surface:   #1F2937;
+  --surface-2: #273548;
+  --surface-3: #374151;
+  --border:    rgba(255, 255, 255, 0.05);
+  --border-2:  rgba(255, 255, 255, 0.03);
+  --border-glow: rgba(34, 211, 238, 0.35);
+
+  --text:      #FFFFFF;
+  --text-dim:  #9CA3AF;
+  --text-mute: #6B7280;
+
+  --green:     #10B981;
+  --red:       #EF4444;
+  --amber:     var(--gold);
+
+  --grad-brand: linear-gradient(135deg, #0A84FF 0%, #22D3EE 100%);
+  --grad-brand-soft: linear-gradient(135deg, rgba(10,132,255,0.15) 0%, rgba(34,211,238,0.15) 100%);
+  --grad-gold: linear-gradient(135deg, #F59E0B 0%, #FBBF24 50%, #D97706 100%);
+  --grad-panel: linear-gradient(180deg, rgba(31,41,55,0.6) 0%, rgba(17,24,39,0.6) 100%);
+  --grad-bull: linear-gradient(135deg, #10B981, #22D3EE);
+  --grad-bear: linear-gradient(135deg, #EF4444, #6D28D9);
+  --grad-deep: linear-gradient(135deg, #1E3A8A, #0A84FF);
+  --grad-purple: linear-gradient(135deg, #6D28D9, #4F46E5);
+
+  --glow-cyan:   0 0 20px rgba(34,211,238,0.25), 0 0 40px rgba(34,211,238,0.1);
+  --glow-purple: 0 0 20px rgba(109,40,217,0.3), 0 0 40px rgba(109,40,217,0.12);
+  --glow-gold:   0 0 16px rgba(245,158,11,0.35);
+  --shadow-soft: 0 4px 24px rgba(0,0,0,0.4), 0 1px 0 rgba(79,70,229,0.1) inset;
+
+  --mono:      'JetBrains Mono', 'IBM Plex Mono', 'Courier New', monospace;
+  --sans:      'Space Grotesk', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --sidebar-w: 240px;
+  --header-h:  64px;
+  --footer-h:  36px;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; overflow: hidden; }
+body {
+  background:
+    radial-gradient(ellipse 1200px 600px at 20% 0%, rgba(10,132,255,0.08), transparent 60%),
+    radial-gradient(ellipse 1000px 700px at 80% 30%, rgba(109,40,217,0.10), transparent 60%),
+    radial-gradient(ellipse 800px 500px at 50% 100%, rgba(34,211,238,0.06), transparent 60%),
+    var(--bg);
+}
+
+/* ── SCROLLBAR ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--indigo), var(--blue)); border-radius: 4px; opacity: 0.5; }
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, var(--cyan), var(--indigo)); }
+
+/* ── LAYOUT ──────────────────────────────────────────────── */
+#app { display: grid; grid-template-rows: var(--header-h) 1fr var(--footer-h); grid-template-columns: var(--sidebar-w) 1fr; height: 100vh; }
+
+/* ── HEADER ──────────────────────────────────────────────── */
+#header {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 20px;
+  background:
+    linear-gradient(180deg, rgba(11,16,36,0.95), rgba(7,10,26,0.85)),
+    radial-gradient(ellipse 600px 100px at 50% 100%, rgba(41,214,255,0.15), transparent 70%);
+  border-bottom: 1px solid var(--border);
+  position: relative; z-index: 100;
+  backdrop-filter: blur(12px);
+}
+#header::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--blue) 30%, var(--cyan) 50%, var(--purple) 70%, transparent 100%);
+  opacity: 0.55;
+}
+.brand {
+  display: flex; align-items: center; gap: 12px; height: 100%;
+  position: relative;
+}
+.brand-mark {
+  width: 42px; height: 42px;
+  background-image: url('logo-mark.png');
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+  filter: drop-shadow(0 0 6px rgba(10,132,255,0.55)) drop-shadow(0 0 14px rgba(109,40,217,0.35));
+}
+.brand-text { display: flex; flex-direction: column; line-height: 1; gap: 4px; }
+.brand-name {
+  font-family: var(--sans); font-size: 18px; font-weight: 700; letter-spacing: 1px;
+  background: var(--grad-brand); -webkit-background-clip: text; background-clip: text; color: transparent;
+  display: flex; align-items: baseline; gap: 0;
+}
+.brand-name .num {
+  font-family: var(--mono); font-weight: 700; font-size: 14px;
+  background: var(--grad-gold); -webkit-background-clip: text; background-clip: text; color: transparent;
+  margin-left: 4px; letter-spacing: 1.5px;
+}
+.brand-tagline { font-family: var(--mono); font-size: 9px; color: var(--text-dim); letter-spacing: 2.5px; text-transform: uppercase; }
+.header-sep { width: 1px; height: 32px; background: linear-gradient(180deg, transparent, var(--border), transparent); flex-shrink: 0; }
+#instrument-display {
+  display: flex; align-items: center; gap: 14px; flex: 1;
+  font-family: var(--mono); font-size: 12px;
+}
+#instrument-name {
+  font-weight: 700; font-size: 16px; letter-spacing: 1.5px;
+  background: var(--grad-gold); -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: 0 0 12px rgba(245,158,11,0.4);
+}
+#last-candle-bar { display: flex; gap: 14px; font-size: 11px; align-items: center; }
+.ohlc-item { color: var(--text-mute); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+.ohlc-item span { color: var(--text); font-size: 12px; font-weight: 500; margin-left: 3px; letter-spacing: 0; text-transform: none; }
+#direction-arrow { font-size: 18px; padding: 2px 6px; border-radius: 4px; }
+#direction-arrow.up   { color: var(--green); background: rgba(16,185,129,0.12); box-shadow: 0 0 12px rgba(16,185,129,0.25); }
+#direction-arrow.down { color: var(--red); background: rgba(239,68,68,0.12); box-shadow: 0 0 12px rgba(239,68,68,0.25); }
+.header-actions { display: flex; gap: 8px; margin-left: auto; align-items: center; }
+#date-display { font-family: var(--mono); font-size: 11px; color: var(--text-dim); white-space: nowrap; padding: 5px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: rgba(11,16,36,0.4); }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+  border: 1px solid var(--border); background: rgba(17,23,58,0.6);
+  color: var(--text); font-family: var(--mono); font-size: 11px; font-weight: 500;
+  cursor: pointer; border-radius: 6px; transition: all 0.18s ease;
+  white-space: nowrap; letter-spacing: 0.5px;
+  backdrop-filter: blur(8px);
+}
+.btn:hover { border-color: var(--cyan); color: var(--cyan); box-shadow: var(--glow-cyan); transform: translateY(-1px); }
+.btn-gold {
+  background: var(--grad-gold); color: #1A1100; border-color: transparent;
+  font-weight: 600; box-shadow: var(--glow-gold);
+}
+.btn-gold:hover { color: #1A1100; transform: translateY(-1px); box-shadow: 0 0 24px rgba(232,184,92,0.5); border-color: transparent; }
+.btn-primary {
+  background: var(--grad-brand); color: #fff; border-color: transparent;
+  font-weight: 600; box-shadow: 0 0 16px rgba(10,132,255,0.35);
+}
+.btn-primary:hover { color: #fff; transform: translateY(-1px); box-shadow: 0 0 28px rgba(10,132,255,0.6); border-color: transparent; }
+.btn-red { border-color: var(--red); color: var(--red); }
+
+/* ── SIDEBAR ─────────────────────────────────────────────── */
+#sidebar {
+  background: linear-gradient(180deg, rgba(11,16,36,0.85), rgba(7,10,26,0.95));
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+  padding: 0; backdrop-filter: blur(8px);
+  position: relative;
+}
+#sidebar::before {
+  content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: 1px;
+  background: linear-gradient(180deg, transparent, var(--border-glow) 30%, var(--border-glow) 70%, transparent);
+  opacity: 0.4;
+}
+.sidebar-section { padding: 14px 14px 8px; border-bottom: 1px solid var(--border-2); }
+.sidebar-section-title { font-size: 9px; letter-spacing: 2.5px; color: var(--text-mute); text-transform: uppercase; margin-bottom: 10px; font-family: var(--mono); font-weight: 600; }
+
+#instrument-list { display: flex; flex-direction: column; gap: 4px; }
+.instrument-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; cursor: pointer; border-radius: 6px;
+  border: 1px solid transparent; font-family: var(--mono); font-size: 11px;
+  transition: all 0.18s ease; position: relative; overflow: hidden;
+}
+.instrument-item:hover { background: rgba(79,70,229,0.06); border-color: var(--border); }
+.instrument-item.active {
+  background: linear-gradient(135deg, rgba(10,132,255,0.12), rgba(34,211,238,0.10));
+  border-color: rgba(41,214,255,0.4); box-shadow: var(--glow-cyan);
+}
+.instrument-item.active::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: var(--grad-brand);
+}
+.instrument-item.active .inst-name { color: var(--cyan); }
+.instrument-item .del-btn { opacity: 0; font-size: 10px; color: var(--red); padding: 0 4px; cursor: pointer; background: none; border: none; transition: opacity 0.15s; }
+.instrument-item:hover .del-btn { opacity: 1; }
+.instrument-item .inst-name { font-weight: 600; letter-spacing: 0.5px; }
+.instrument-item .inst-count { font-size: 9px; color: var(--text-mute); margin-top: 2px; letter-spacing: 0.5px; }
+
+.sidebar-upload { padding: 12px 14px; border-bottom: 1px solid var(--border-2); display: flex; flex-direction: column; gap: 8px; }
+.upload-zone {
+  border: 1px dashed var(--border); padding: 12px 10px; text-align: center;
+  cursor: pointer; transition: all 0.18s ease; border-radius: 8px;
+  font-size: 11px; color: var(--text-dim); background: rgba(11,16,36,0.4);
+}
+.upload-zone:hover {
+  border-color: var(--cyan); color: var(--cyan);
+  background: linear-gradient(135deg, rgba(10,132,255,0.06), rgba(34,211,238,0.06));
+  box-shadow: var(--glow-cyan);
+}
+.upload-zone input { display: none; }
+.upload-zone .up-icon { font-size: 18px; display: block; margin-bottom: 4px; opacity: 0.7; }
+.upload-label { font-size: 9px; letter-spacing: 2px; color: var(--text-mute); text-transform: uppercase; font-family: var(--mono); font-weight: 600; }
+
+#history-list { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+.history-item {
+  padding: 7px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid transparent; font-size: 11px; font-family: var(--mono);
+  transition: all 0.15s; background: rgba(11,16,36,0.4);
+}
+.history-item:hover { background: rgba(79,70,229,0.08); border-color: var(--border); }
+.history-item .hist-date { color: var(--text-dim); font-size: 10px; }
+.history-item .hist-bias { font-size: 10px; font-weight: 700; }
+.hist-bias.BULLISH { color: var(--green); }
+.hist-bias.BEARISH { color: var(--red); }
+.hist-bias.NEUTRAL { color: var(--text-mute); }
+.hist-accuracy { font-size: 9px; color: var(--text-mute); }
+
+/* ── MAIN PANEL ──────────────────────────────────────────── */
+#main {
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg);
+}
+
+/* Tab bar */
+#tab-bar {
+  display: flex; align-items: center; gap: 0;
+  background: linear-gradient(180deg, rgba(11,16,36,0.6), rgba(7,10,26,0.6));
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px; flex-shrink: 0; backdrop-filter: blur(8px);
+}
+.tab {
+  padding: 14px 18px; font-family: var(--mono); font-size: 11px;
+  letter-spacing: 1.5px; cursor: pointer; color: var(--text-mute);
+  border-bottom: 2px solid transparent; transition: all 0.18s ease;
+  text-transform: uppercase; font-weight: 600; position: relative;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--cyan); border-image: var(--grad-brand) 1; border-bottom: 2px solid; }
+.tab.active::before {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px;
+  background: var(--grad-brand);
+}
+.tab-spacer { flex: 1; }
+
+/* Day filter pills */
+#dow-filter { display: flex; gap: 4px; align-items: center; }
+.dow-pill {
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: 12px;
+  font-family: var(--mono); font-size: 10px; cursor: pointer;
+  color: var(--text-dim); transition: all 0.18s ease; font-weight: 500;
+  background: rgba(11,16,36,0.4);
+}
+.dow-pill:hover { border-color: var(--cyan); color: var(--cyan); }
+.dow-pill.active {
+  background: var(--grad-brand-soft); border-color: var(--cyan); color: var(--cyan);
+  box-shadow: var(--glow-cyan);
+}
+.dow-label { font-size: 10px; color: var(--text-mute); font-family: var(--mono); margin-right: 4px; letter-spacing: 1px; }
+
+/* Content area */
+#content { flex: 1; overflow-y: auto; padding: 16px; }
+
+/* ── KPI STRIP ───────────────────────────────────────────── */
+#kpi-strip {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  margin-bottom: 20px;
+}
+.kpi-card {
+  background: linear-gradient(135deg, rgba(26,33,81,0.55), rgba(11,16,36,0.7));
+  border: 1px solid var(--border);
+  padding: 16px 18px; border-radius: 12px; position: relative;
+  overflow: hidden; transition: all 0.25s ease;
+  box-shadow: var(--shadow-soft);
+}
+.kpi-card:hover { border-color: rgba(10,132,255,0.25); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 20px rgba(10,132,255,0.15); }
+.kpi-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.kpi-card::after {
+  content: ''; position: absolute; top: -50%; right: -30%;
+  width: 200px; height: 200px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(79,70,229,0.10), transparent 70%);
+  pointer-events: none;
+}
+.kpi-card.bull::before { background: var(--grad-bull); }
+.kpi-card.bear::before { background: var(--grad-bear); }
+.kpi-card.neutral::before { background: var(--grad-gold); }
+.kpi-label { font-size: 10px; letter-spacing: 2.5px; color: var(--text-dim); text-transform: uppercase; font-family: var(--mono); margin-bottom: 8px; font-weight: 600; }
+.kpi-value { font-family: var(--mono); font-size: 32px; font-weight: 700; line-height: 1; letter-spacing: -0.5px; }
+.kpi-value.high  { background: var(--grad-gold); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: var(--glow-gold); }
+.kpi-value.amber { background: var(--grad-brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.kpi-value.dim   { color: var(--text-mute); }
+.kpi-sub { font-size: 10px; color: var(--text-mute); margin-top: 8px; font-family: var(--mono); letter-spacing: 0.5px; }
+
+/* ── SECTION HEADERS ─────────────────────────────────────── */
+.section-hdr {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 14px; margin-top: 28px;
+}
+.section-hdr h2 { font-family: var(--mono); font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--text); font-weight: 600; }
+.section-hdr::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); }
+.section-num {
+  font-family: var(--mono); font-size: 10px; padding: 3px 8px; border-radius: 4px;
+  background: var(--grad-brand-soft); color: var(--cyan); border: 1px solid var(--border);
+  font-weight: 600; letter-spacing: 1px;
+}
+
+/* ── GRID LAYOUTS ────────────────────────────────────────── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+
+/* ── PANELS ──────────────────────────────────────────────── */
+.panel {
+  background: linear-gradient(180deg, rgba(26,33,81,0.4), rgba(11,16,36,0.55));
+  border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 18px;
+  box-shadow: var(--shadow-soft); position: relative; overflow: hidden;
+  transition: all 0.25s ease;
+}
+.panel:hover { border-color: rgba(10,132,255,0.2); box-shadow: 0 4px 28px rgba(0,0,0,0.35), 0 0 16px rgba(10,132,255,0.1); }
+.panel-title { font-family: var(--mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-2); font-weight: 600; }
+
+/* ── STAT TABLE ──────────────────────────────────────────── */
+.stat-table { width: 100%; border-collapse: collapse; }
+.stat-table th { font-family: var(--mono); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-mute); padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border-2); font-weight: 600; }
+.stat-table td { font-family: var(--mono); font-size: 11px; padding: 7px 10px; border-bottom: 1px solid var(--border-2); }
+.stat-table tr:last-child td { border-bottom: none; }
+.stat-table tr:hover td { background: rgba(79,70,229,0.04); }
+
+/* ── PROBABILITY BARS ────────────────────────────────────── */
+.prob-bar-wrap { display: flex; align-items: center; gap: 8px; }
+.prob-bar { flex: 1; height: 5px; background: rgba(11,16,36,0.6); border-radius: 3px; overflow: hidden; border: 1px solid var(--border-2); }
+.prob-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+.prob-bar-fill.green  { background: var(--grad-bull); box-shadow: 0 0 8px rgba(16,185,129,0.4); }
+.prob-bar-fill.red    { background: var(--grad-bear); box-shadow: 0 0 8px rgba(239,68,68,0.4); }
+.prob-bar-fill.gold   { background: var(--grad-gold); box-shadow: var(--glow-gold); }
+.prob-bar-fill.amber  { background: var(--grad-brand); box-shadow: var(--glow-cyan); }
+.prob-bar-fill.blue   { background: linear-gradient(90deg, var(--blue), var(--cyan)); }
+.prob-bar-fill.purple { background: linear-gradient(90deg, var(--purple), var(--violet)); }
+
+/* ── BADGES ──────────────────────────────────────────────── */
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.5px; }
+.badge-green  { background: rgba(16,185,129,0.12); color: var(--green); border: 1px solid rgba(16,185,129,0.35); }
+.badge-red    { background: rgba(239,68,68,0.12); color: var(--red); border: 1px solid rgba(239,68,68,0.35); }
+.badge-gold   { background: rgba(245,158,11,0.12); color: var(--gold); border: 1px solid rgba(245,158,11,0.35); }
+.badge-amber  { background: rgba(245,158,11,0.12); color: var(--gold); border: 1px solid rgba(245,158,11,0.35); }
+.badge-gray   { background: rgba(107,114,128,0.2); color: var(--text-mute); border: 1px solid var(--border-2); }
+.badge-warn   { background: rgba(245,158,11,0.10); color: var(--gold); border: 1px solid rgba(245,158,11,0.3); }
+
+/* ── PBAR VALUE ──────────────────────────────────────────── */
+.pval { font-family: var(--mono); font-weight: 700; }
+.pval.high  { color: var(--gold); }
+.pval.amber { color: var(--cyan); }
+.pval.dim   { color: var(--text-mute); }
+.pval.green { color: var(--green); }
+.pval.red   { color: var(--red); }
+
+function pvalClass(v) {
+  if (v >= 65) return 'high';
+  if (v >= 50) return 'amber';
+  return 'dim';
+}
+
+/* ── CHART WRAPPER ───────────────────────────────────────── */
+.chart-wrap { position: relative; height: 200px; }
+.chart-wrap-sm { position: relative; height: 130px; }
+
+/* ── FORECAST CARD ───────────────────────────────────────── */
+#forecast-card {
+  background: linear-gradient(180deg, rgba(26,33,81,0.5), rgba(11,16,36,0.7));
+  border: 1px solid var(--border-glow);
+  border-radius: 16px; overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 60px rgba(10,132,255,0.15);
+  position: relative;
+}
+#forecast-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--grad-brand);
+}
+.forecast-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; background: linear-gradient(135deg, rgba(10,132,255,0.08), rgba(34,211,238,0.08));
+  border-bottom: 1px solid var(--border);
+}
+.forecast-title {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+  background: var(--grad-brand); -webkit-background-clip: text; background-clip: text; color: transparent;
+  font-weight: 700;
+}
+.forecast-date  { font-family: var(--mono); font-size: 12px; color: var(--gold); font-weight: 600; }
+
+.forecast-kpis { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--border); }
+.fkpi { padding: 14px 18px; border-right: 1px solid var(--border-2); }
+.fkpi:last-child { border-right: none; }
+.fkpi-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-mute); font-family: var(--mono); font-weight: 600; }
+.fkpi-val   { font-family: var(--mono); font-size: 22px; font-weight: 700; margin-top: 4px; letter-spacing: -0.5px; }
+
+.forecast-signals { padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.signal-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-family: var(--mono); font-size: 11px; }
+.signal-icon { width: 14px; flex-shrink: 0; }
+.signal-name { flex: 1; color: var(--text-dim); }
+.signal-desc { font-size: 10px; color: var(--text-mute); }
+.signal-n    { font-size: 10px; color: var(--text-mute); }
+
+.forecast-scenarios { display: grid; grid-template-columns: 1fr 1fr 1fr; border-bottom: 1px solid var(--border); }
+.scenario { padding: 14px 18px; border-right: 1px solid var(--border-2); }
+.scenario:last-child { border-right: none; }
+.scenario-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-mute); font-family: var(--mono); margin-bottom: 4px; }
+.scenario-val   { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+
+.forecast-verdict { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; }
+.verdict-bias { font-family: var(--mono); font-size: 18px; font-weight: 700; letter-spacing: 2px; }
+.verdict-bias.BULLISH { color: var(--green); }
+.verdict-bias.BEARISH { color: var(--red); }
+.verdict-bias.NEUTRAL { color: var(--text-mute); }
+.verdict-conf { display: flex; align-items: center; gap: 8px; }
+.conf-badge { font-family: var(--mono); font-size: 11px; padding: 3px 10px; border-radius: 2px; }
+.conf-badge.HIGH   { background: rgba(0,200,83,0.15); color: var(--green); border: 1px solid rgba(0,200,83,0.3); }
+.conf-badge.MEDIUM { background: rgba(255,160,0,0.15); color: var(--amber); border: 1px solid rgba(255,160,0,0.3); }
+.conf-badge.LOW    { background: rgba(72,79,88,0.2); color: var(--text-mute); border: 1px solid var(--border); }
+.verdict-meta { font-size: 10px; color: var(--text-mute); font-family: var(--mono); }
+
+/* ── MODAL ───────────────────────────────────────────────── */
+#modal-overlay { display: none; position: fixed; inset: 0; background: rgba(4,6,15,0.85); z-index: 999; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+#modal-overlay.open { display: flex; }
+#modal {
+  background: linear-gradient(180deg, rgba(26,33,81,0.95), rgba(11,16,36,0.98));
+  border: 1px solid var(--border-glow); border-radius: 16px; width: 500px; max-height: 80vh; overflow-y: auto;
+  box-shadow: 0 20px 80px rgba(0,0,0,0.6), 0 0 80px rgba(10,132,255,0.25);
+  position: relative;
+}
+#modal::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--grad-brand); border-radius: 16px 16px 0 0; }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+.modal-header h2 { font-family: var(--mono); font-size: 12px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--text); font-weight: 600; }
+.modal-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; line-height: 1; padding: 4px 8px; border-radius: 4px; transition: all 0.15s; }
+.modal-close:hover { background: rgba(239,68,68,0.1); color: var(--red); }
+.modal-body { padding: 20px 22px; }
+.form-group { margin-bottom: 14px; }
+.form-label { font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; display: block; font-weight: 600; }
+.form-input {
+  width: 100%; background: rgba(4,6,15,0.6); border: 1px solid var(--border);
+  color: var(--text); padding: 10px 14px; font-family: var(--mono); font-size: 13px;
+  border-radius: 8px; outline: none; transition: all 0.18s ease;
+}
+.form-input:focus { border-color: var(--cyan); box-shadow: var(--glow-cyan); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border-2); }
+
+/* ── PROGRESS ────────────────────────────────────────────── */
+#progress-bar-wrap { display: none; position: fixed; top: var(--header-h); left: 0; right: 0; z-index: 200; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 20px; }
+#progress-bar-wrap.visible { display: block; }
+.progress-label { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-bottom: 5px; }
+.progress-track { height: 3px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+.progress-fill  { height: 100%; background: var(--gold); border-radius: 2px; transition: width 0.2s; }
+
+/* ── TOOLTIP ─────────────────────────────────────────────── */
+.tooltip-wrap { position: relative; display: inline-flex; align-items: center; }
+.tooltip-icon { width: 14px; height: 14px; border-radius: 50%; background: var(--border2); color: var(--text-mute); font-size: 9px; display: inline-flex; align-items: center; justify-content: center; cursor: help; margin-left: 4px; flex-shrink: 0; }
+.tooltip-box { display: none; position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); border-radius: 2px; padding: 6px 10px; font-size: 10px; color: var(--text-dim); white-space: nowrap; z-index: 500; max-width: 240px; white-space: normal; line-height: 1.4; }
+.tooltip-wrap:hover .tooltip-box { display: block; }
+
+/* ── WARNING ─────────────────────────────────────────────── */
+.warn-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 9px; color: var(--amber); }
+
+/* ── HEATMAP ─────────────────────────────────────────────── */
+.heatmap-grid { display: grid; grid-template-columns: 36px repeat(5, 1fr); gap: 3px; font-family: var(--mono); font-size: 9px; }
+.hm-header { text-align: center; color: var(--text-dim); padding: 4px; font-weight: 600; letter-spacing: 1px; }
+.hm-row-label { color: var(--text-mute); padding: 4px; display: flex; align-items: center; }
+.hm-cell { padding: 5px; text-align: center; border-radius: 4px; font-size: 9px; color: var(--text); transition: all 0.15s; cursor: default; font-weight: 500; }
+.hm-cell:hover { transform: scale(1.08); box-shadow: 0 0 12px rgba(10,132,255,0.4); z-index: 5; position: relative; }
+
+/* ── EMPTY STATE ─────────────────────────────────────────── */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px; gap: 10px; color: var(--text-mute); font-family: var(--mono); text-align: center; }
+.empty-state .es-icon { font-size: 32px; opacity: 0.4; }
+.empty-state .es-title { font-size: 12px; letter-spacing: 1px; color: var(--text-dim); }
+.empty-state .es-sub   { font-size: 10px; }
+
+/* ── ACCURACY TRACKER ────────────────────────────────────── */
+#accuracy-strip {
+  display: flex; align-items: center; gap: 14px; padding: 8px 20px;
+  background: linear-gradient(90deg, rgba(10,132,255,0.04), rgba(34,211,238,0.04));
+  border-bottom: 1px solid var(--border-2); font-family: var(--mono); font-size: 10px;
+  color: var(--text-dim); flex-shrink: 0; letter-spacing: 0.5px;
+}
+#accuracy-strip .acc-label { color: var(--text-mute); letter-spacing: 1.5px; }
+#accuracy-strip .acc-val { background: var(--grad-gold); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 700; font-size: 12px; }
+
+/* ── FOOTER ──────────────────────────────────────────────── */
+#footer {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  background: linear-gradient(180deg, rgba(7,10,26,0.85), rgba(4,6,15,0.95));
+  border-top: 1px solid var(--border);
+  font-family: var(--mono); font-size: 9px; color: var(--text-mute);
+  letter-spacing: 1px; backdrop-filter: blur(8px); position: relative;
+}
+#footer::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--blue), var(--cyan), var(--purple), transparent);
+  opacity: 0.4;
+}
+#footer .copy { color: var(--text-mute); }
+#footer .sep { color: var(--border); }
+
+/* ── NOTIFICATION ────────────────────────────────────────── */
+#notif { position: fixed; top: 80px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+.notif-item {
+  background: linear-gradient(135deg, rgba(26,33,81,0.95), rgba(11,16,36,0.98));
+  border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px;
+  font-family: var(--mono); font-size: 11px; color: var(--text); max-width: 380px;
+  animation: slideIn 0.25s ease; border-left: 3px solid var(--blue);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), var(--glow-cyan);
+  backdrop-filter: blur(12px); line-height: 1.5;
+}
+.notif-item.success { border-left-color: var(--green); box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 16px rgba(16,185,129,0.3); }
+.notif-item.error   { border-left-color: var(--red); box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 16px rgba(239,68,68,0.3); }
+.notif-item.warn    { border-left-color: var(--gold); box-shadow: 0 8px 32px rgba(0,0,0,0.4), var(--glow-gold); }
+@keyframes slideIn { from { opacity:0; transform: translateX(20px); } to { opacity:1; transform: translateX(0); } }
+
+/* ── NO-DATA ─────────────────────────────────────────────── */
+#no-instrument-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 20px; font-family: var(--mono); color: var(--text-mute); }
+#no-instrument-state .ni-logo {
+  width: 180px; height: 180px;
+  background-image: url('logo-transparent.png'); background-size: contain; background-repeat: no-repeat; background-position: center;
+  filter: drop-shadow(0 0 30px rgba(10,132,255,0.5)) drop-shadow(0 0 60px rgba(109,40,217,0.3));
+}
+#no-instrument-state h2 {
+  font-family: var(--sans); font-size: 18px; letter-spacing: 3px; font-weight: 600;
+  background: var(--grad-brand); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+#no-instrument-state p  { font-size: 12px; text-align: center; max-width: 360px; line-height: 1.7; color: var(--text-dim); font-family: var(--sans); }
+
+/* ── DATA ENTRY FORM ─────────────────────────────────────── */
+#manual-entry-form { display: none; }
+
+/* ── TABS CONTENT ────────────────────────────────────────── */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ── CANDLE MINI-CHART ───────────────────────────────────── */
+.mini-candles { display: flex; align-items: flex-end; gap: 3px; height: 60px; }
+.mini-candle { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 6px; max-width: 16px; }
+.mini-body { width: 100%; border-radius: 1px; }
+.mini-wick-top, .mini-wick-bot { width: 1px; background: currentColor; }
+
+/* ── RESPONSIVE ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+  :root { --sidebar-w: 180px; }
+  .grid-3 { grid-template-columns: 1fr 1fr; }
+  .grid-4 { grid-template-columns: 1fr 1fr; }
+  #kpi-strip { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── HEADER ── -->
+  <header id="header">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-text">
+        <div class="brand-name">ALKHAL<span class="num">227</span></div>
+        <div class="brand-tagline">Statistical Analysis Engine</div>
+      </div>
+    </div>
+    <div class="header-sep"></div>
+    <div id="instrument-display">
+      <span id="instrument-name">—</span>
+      <div id="last-candle-bar">
+        <span class="ohlc-item">O:<span id="hdr-open">—</span></span>
+        <span class="ohlc-item">H:<span id="hdr-high">—</span></span>
+        <span class="ohlc-item">L:<span id="hdr-low">—</span></span>
+        <span class="ohlc-item">C:<span id="hdr-close">—</span></span>
+        <span id="direction-arrow">—</span>
+        <span id="hdr-dow" style="font-size:10px;color:var(--text-mute)"></span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="date-display"></span>
+      <button class="btn" onclick="openModal('new-instrument')">+ Instrument</button>
+      <button class="btn btn-primary" onclick="openModal('manual-entry')">+ OHLC</button>
+      <button class="btn btn-gold" onclick="exportPDF()">⬇ PDF</button>
+    </div>
+  </header>
+
+  <!-- ── SIDEBAR ── -->
+  <aside id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Instruments</div>
+      <div id="instrument-list"></div>
+    </div>
+
+    <div class="sidebar-upload">
+      <div class="upload-label">Upload Daily CSV</div>
+      <label class="upload-zone">
+        <span class="up-icon">📂</span>
+        <span>Drop or click to upload<br>Full History CSV</span>
+        <input type="file" id="upload-daily" accept=".csv" onchange="handleDailyUpload(event)">
+      </label>
+      <label class="upload-zone">
+        <span class="up-icon">🕐</span>
+        <span>Drop or click to upload<br>Hourly Update CSV</span>
+        <input type="file" id="upload-hourly" accept=".csv" onchange="handleHourlyUpload(event)">
+      </label>
+    </div>
+
+    <div class="sidebar-section" style="flex:0;padding-bottom:8px;">
+      <div class="sidebar-section-title">Report History</div>
+    </div>
+    <div id="history-list"></div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main id="main">
+    <div id="accuracy-strip">
+      <span class="acc-label">ALKHAL227 FORECAST ACCURACY:</span>
+      <span id="acc-value" class="acc-val">—</span>
+      <span id="acc-detail" class="acc-label"></span>
+      <span style="margin-left:auto;color:var(--text-mute)">All times Broker Time • <span id="data-warning" style="color:var(--amber)"></span></span>
+    </div>
+
+    <div id="tab-bar">
+      <div class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</div>
+      <div class="tab" data-tab="patterns" onclick="switchTab('patterns')">Patterns</div>
+      <div class="tab" data-tab="forecast" onclick="switchTab('forecast')">Forecast</div>
+      <div class="tab" data-tab="seasonal" onclick="switchTab('seasonal')">Seasonal</div>
+      <div class="tab" data-tab="history" onclick="switchTab('history')">History</div>
+      <div class="tab-spacer"></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:0 4px;">
+        <span class="dow-label">Filter DOW:</span>
+        <div id="dow-filter">
+          <div class="dow-pill" data-dow="1" onclick="toggleDow(1)">Mon</div>
+          <div class="dow-pill" data-dow="2" onclick="toggleDow(2)">Tue</div>
+          <div class="dow-pill" data-dow="3" onclick="toggleDow(3)">Wed</div>
+          <div class="dow-pill" data-dow="4" onclick="toggleDow(4)">Thu</div>
+          <div class="dow-pill" data-dow="5" onclick="toggleDow(5)">Fri</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="content">
+      <div id="no-instrument-state">
+        <div class="ni-logo"></div>
+        <h2>NO INSTRUMENT LOADED</h2>
+        <p>Click <strong>+ Instrument</strong> to name an instrument, then upload a daily OHLC CSV to begin statistical analysis.</p>
+      </div>
+
+      <!-- TAB: OVERVIEW -->
+      <div class="tab-content" id="tab-overview">
+
+        <div id="kpi-strip">
+          <div class="kpi-card bull">
+            <div class="kpi-label">
+              Positive Close <span class="tooltip-wrap"><span class="tooltip-icon">?</span><span class="tooltip-box">% of historical days that closed above their open, filtered by current day-of-week context.</span></span>
+            </div>
+            <div class="kpi-value" id="kpi-pc">—%</div>
+            <div class="kpi-sub" id="kpi-pc-n"></div>
+          </div>
+          <div class="kpi-card bear">
+            <div class="kpi-label">
+              Negative Close <span class="tooltip-wrap"><span class="tooltip-icon">?</span><span class="tooltip-box">% of historical days that closed below their open, filtered by current day-of-week context.</span></span>
+            </div>
+            <div class="kpi-value" id="kpi-nc">—%</div>
+            <div class="kpi-sub" id="kpi-nc-n"></div>
+          </div>
+          <div class="kpi-card neutral">
+            <div class="kpi-label">
+              High Break <span class="tooltip-wrap"><span class="tooltip-icon">?</span><span class="tooltip-box">% chance tomorrow's price breaks above today's high, based on historical precedent.</span></span>
+            </div>
+            <div class="kpi-value" id="kpi-hb">—%</div>
+            <div class="kpi-sub" id="kpi-hb-n"></div>
+          </div>
+          <div class="kpi-card neutral">
+            <div class="kpi-label">
+              Low Break <span class="tooltip-wrap"><span class="tooltip-icon">?</span><span class="tooltip-box">% chance tomorrow's price breaks below today's low, based on historical precedent.</span></span>
+            </div>
+            <div class="kpi-value" id="kpi-lb">—%</div>
+            <div class="kpi-sub" id="kpi-lb-n"></div>
+          </div>
+        </div>
+
+        <!-- Weekly H/L -->
+        <div class="section-hdr"><span class="section-num">5.2</span><h2>Weekly High/Low Formation</h2></div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title">Weekly High — By Weekday</div>
+            <div class="chart-wrap"><canvas id="chart-weekly-high"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Weekly Low — By Weekday</div>
+            <div class="chart-wrap"><canvas id="chart-weekly-low"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Gap + Abnormal -->
+        <div class="section-hdr"><span class="section-num">5.10–11</span><h2>Gaps & Abnormal Candles</h2></div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title">Gap Fill Rates</div>
+            <div id="gap-panel"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Abnormal Candles (>2× Avg Range)</div>
+            <div id="abnormal-panel"></div>
+          </div>
+        </div>
+
+        <!-- Candle Ratios -->
+        <div class="section-hdr"><span class="section-num">5.9</span><h2>Candle Ratio Analysis</h2></div>
+        <div class="panel">
+          <div id="ratio-panel"></div>
+        </div>
+
+      </div>
+
+      <!-- TAB: PATTERNS -->
+      <div class="tab-content" id="tab-patterns">
+
+        <!-- Thu/Fri/Mon -->
+        <div class="section-hdr"><span class="section-num">5.4</span><h2>Thu/Fri/Monday Pattern</h2></div>
+        <div class="panel">
+          <div id="thufrimon-panel"></div>
+        </div>
+
+        <!-- Consecutive -->
+        <div class="section-hdr"><span class="section-num">5.6</span><h2>Consecutive Candle Sequences</h2></div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title">After N Consecutive Bullish</div>
+            <div id="consec-up-panel"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">After N Consecutive Bearish</div>
+            <div id="consec-down-panel"></div>
+          </div>
+        </div>
+
+        <!-- Inside/Outside Bar -->
+        <div class="section-hdr"><span class="section-num">5.7</span><h2>Inside Bar / Outside Bar Patterns</h2></div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title">Inside Bar Statistics</div>
+            <div id="insidebar-panel"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Outside Bar (Engulfing) by Weekday</div>
+            <div id="outsidebar-panel"></div>
+          </div>
+        </div>
+
+        <!-- Break Continuation -->
+        <div class="section-hdr"><span class="section-num">5.8</span><h2>High/Low Break Continuation</h2></div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title">High Break → Continuation (50% target)</div>
+            <div id="hbreak-panel"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Low Break → Continuation (50% target)</div>
+            <div id="lbreak-panel"></div>
+          </div>
+        </div>
+
+        <!-- Lower High/Low -->
+        <div class="section-hdr"><span class="section-num">5.5</span><h2>Lower High / Tuesday Lower Low</h2></div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title">Lower High Pattern</div>
+            <div id="lowerhigh-panel"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Tuesday Lower Low</div>
+            <div id="tuell-panel"></div>
+          </div>
+        </div>
+
+        <!-- Thursday Special -->
+        <div class="section-hdr"><span class="section-num">5.13</span><h2>Thursday Special Pattern</h2></div>
+        <div class="panel">
+          <div id="thuspecial-panel"></div>
+        </div>
+
+        <!-- Fractals -->
+        <div class="section-hdr"><span class="section-num">5.14</span><h2>Fractal Pattern Recognition</h2></div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title">3-Candle Patterns (min 15 occurrences)</div>
+            <div id="fractal3-panel"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">5-Candle Patterns (min 15 occurrences)</div>
+            <div id="fractal5-panel"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TAB: FORECAST -->
+      <div class="tab-content" id="tab-forecast">
+        <div id="forecast-card">
+          <div class="forecast-header">
+            <span class="forecast-title">ALKHAL227 — NEXT DAY FORECAST</span>
+            <span id="forecast-date" class="forecast-date">—</span>
+          </div>
+          <div class="forecast-kpis" id="forecast-kpis"></div>
+          <div class="forecast-signals" id="forecast-signals"></div>
+          <div class="forecast-scenarios" id="forecast-scenarios"></div>
+          <div class="forecast-verdict" id="forecast-verdict"></div>
+        </div>
+      </div>
+
+      <!-- TAB: SEASONAL -->
+      <div class="tab-content" id="tab-seasonal">
+        <div class="section-hdr"><span class="section-num">5.12</span><h2>Week Number / Seasonal Analysis</h2></div>
+        <div class="panel">
+          <div class="panel-title">Weekly High/Low Formation Heatmap — Week × Weekday</div>
+          <div id="seasonal-panel"></div>
+        </div>
+        <div class="section-hdr" style="margin-top:20px;"><span class="section-num">5.3</span><h2>Daily High/Low Formation Hours</h2></div>
+        <div class="panel">
+          <div class="panel-title">Hourly High/Low Analysis (requires hourly data uploads)</div>
+          <div id="hourly-panel"></div>
+        </div>
+      </div>
+
+      <!-- TAB: HISTORY -->
+      <div class="tab-content" id="tab-history">
+        <div class="section-hdr"><h2>Forecast History & Accuracy</h2></div>
+        <div id="history-panel"></div>
+      </div>
+
+    </div><!-- /content -->
+  </main>
+
+  <!-- ── FOOTER ── -->
+  <footer id="footer">
+    <span>ALKHAL227 | Statistical Analysis Engine</span>
+    <span class="sep">|</span>
+    <span class="copy">© All Rights Reserved — ALKHAL_YOUSEF_FUAD_KAMEL</span>
+    <span class="sep">|</span>
+    <span>Built with Claude Design</span>
+    <span class="sep">|</span>
+    <span>Version 1.0 | Broker Time Mode | <span id="footer-date"></span></span>
+  </footer>
+</div>
+
+<!-- ── PROGRESS BAR ── -->
+<div id="progress-bar-wrap">
+  <div class="progress-label" id="progress-label">Processing...</div>
+  <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+</div>
+
+<!-- ── NOTIFICATION ── -->
+<div id="notif"></div>
+
+<!-- ── MODALS ── -->
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div id="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">Modal</h2>
+      <button class="modal-close" onclick="closeModalDirect()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ── SCRIPTS ── -->
+<script src="db.js"></script>
+<script src="parser.js"></script>
+<script src="analysis.js"></script>
+<script src="forecast.js"></script>
+<script>
+// ============================================================
+// ALKHAL227 — Main Application
+// © ALKHAL_YOUSEF_FUAD_KAMEL — All Rights Reserved
+// ============================================================
+
+// ── STATE ────────────────────────────────────────────────────
+const STATE = {
+  instruments: [],    // [{name, candles, meta}]
+  activeInstrument: null,
+  candles: [],
+  analyses: null,
+  forecast: null,
+  filterDow: null,
+  reports: [],        // saved forecast reports
+  charts: {},
+};
+
+// ── INIT ─────────────────────────────────────────────────────
+async function init() {
+  updateDateDisplay();
+  setInterval(updateDateDisplay, 60000);
+  await loadInstruments();
+  loadReports();
+  renderSidebar();
+  renderHistory();
+  document.addEventListener('keydown', handleKeyboard);
+}
+
+function updateDateDisplay() {
+  const now = new Date();
+  const str = now.toISOString().replace('T', ' ').substring(0, 16);
+  document.getElementById('date-display').textContent = str;
+  document.getElementById('footer-date').textContent = now.toLocaleDateString();
+}
+
+// ── KEYBOARD ─────────────────────────────────────────────────
+function handleKeyboard(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'r' || e.key === 'R') {
+    if (STATE.activeInstrument) recalculate();
+  }
+  if (e.key === 'n' || e.key === 'N') {
+    openModal('manual-entry');
+  }
+}
+
+// ── INSTRUMENTS ──────────────────────────────────────────────
+async function loadInstruments() {
+  try {
+    STATE.instruments = await DB.getAllInstruments();
+  } catch(e) { STATE.instruments = []; }
+}
+
+async function addInstrument(name) {
+  name = name.trim().toUpperCase();
+  if (!name) return notify('Enter an instrument name', 'error');
+  if (STATE.instruments.find(i => i.name === name)) return notify('Instrument already exists', 'warn');
+  await DB.saveInstrument(name, { candles: 0 });
+  STATE.instruments.push({ name, candles: 0 });
+  renderSidebar();
+  switchInstrument(name);
+  notify(`Instrument ${name} added. Upload a CSV to begin.`, 'success');
+}
+
+async function deleteInstrument(name) {
+  if (!confirm(`Delete ${name} and all its data?`)) return;
+  await DB.deleteInstrument(name);
+  STATE.instruments = STATE.instruments.filter(i => i.name !== name);
+  if (STATE.activeInstrument === name) {
+    STATE.activeInstrument = null;
+    STATE.candles = [];
+    STATE.analyses = null;
+    STATE.forecast = null;
+    showNoInstrument();
+  }
+  renderSidebar();
+  notify(`${name} deleted.`, 'warn');
+}
+
+async function switchInstrument(name) {
+  STATE.activeInstrument = name;
+  document.getElementById('instrument-name').textContent = name;
+  showProgress('Loading dataset…', 0);
+  try {
+    STATE.candles = await DB.getAllCandles(name);
+    showProgress('Loading dataset…', 50);
+    if (STATE.candles.length > 0) {
+      await recalculate();
+    } else {
+      hideProgress();
+      showNoInstrument(true);
+    }
+  } catch(e) {
+    hideProgress();
+    notify('Error loading data: ' + e.message, 'error');
+  }
+  renderSidebar();
+}
+
+function showNoInstrument(hasInst = false) {
+  const el = document.getElementById('no-instrument-state');
+  if (hasInst) {
+    el.style.display = 'flex';
+    el.querySelector('h2').textContent = 'NO DATA UPLOADED';
+    el.querySelector('p').textContent = 'Upload a daily OHLC CSV file to begin statistical analysis for this instrument.';
+  } else {
+    el.style.display = 'flex';
+    el.querySelector('h2').textContent = 'NO INSTRUMENT LOADED';
+    el.querySelector('p').textContent = 'Click + Instrument to name an instrument, then upload a daily OHLC CSV to begin.';
+  }
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+}
+
+// ── UPLOAD DAILY CSV ─────────────────────────────────────────
+async function handleDailyUpload(event) {
+  if (!STATE.activeInstrument) return notify('Select or create an instrument first', 'warn');
+  const file = event.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  showProgress('Parsing CSV…', 10);
+  try {
+    const candles = Parser.parseDailyCSV(text);
+    showProgress(`Storing ${candles.length} candles…`, 30);
+
+    // Check for duplicates — ask only if we have existing data
+    let toStore = candles;
+    if (STATE.candles.length > 0) {
+      const existingDates = new Set(STATE.candles.map(c => c.date));
+      const newCandles = candles.filter(c => !existingDates.has(c.date));
+      const dupes = candles.length - newCandles.length;
+      if (dupes > 0) {
+        const overwrite = confirm(`${dupes} candle(s) already exist. Overwrite?`);
+        toStore = overwrite ? candles : newCandles;
+      }
+    }
+
+    await DB.bulkSaveCandles(STATE.activeInstrument, toStore, (done, total) => {
+      showProgress(`Storing candles… ${done}/${total}`, 30 + Math.round(done/total*50));
+    });
+
+    STATE.candles = await DB.getAllCandles(STATE.activeInstrument);
+    await DB.saveInstrument(STATE.activeInstrument, { candles: STATE.candles.length });
+    const inst = STATE.instruments.find(i => i.name === STATE.activeInstrument);
+    if (inst) inst.candles = STATE.candles.length;
+
+    showProgress('Running analysis…', 85);
+    await recalculate();
+
+    notify(`✓ ${STATE.activeInstrument} — ${STATE.candles.length} candles loaded from ${STATE.candles[0].date} to ${STATE.candles[STATE.candles.length-1].date}`, 'success');
+    renderSidebar();
+  } catch(e) {
+    hideProgress();
+    notify('Upload failed: ' + e.message, 'error');
+  }
+  event.target.value = '';
+}
+
+// ── UPLOAD HOURLY CSV ─────────────────────────────────────────
+async function handleHourlyUpload(event) {
+  if (!STATE.activeInstrument) return notify('Select or create an instrument first', 'warn');
+  const file = event.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  try {
+    let hourly;
+    try {
+      hourly = Parser.parseHourlyCSV(text);
+    } catch(err) {
+      if (err.isDailyInHourlySlot) {
+        const useAsDaily = confirm('⚠ This appears to be a Daily (D1) file, not an hourly file.\n\nDo you want to add it as a daily history file instead?');
+        if (useAsDaily) {
+          // Re-parse as daily
+          const candles = Parser.parseDailyCSV(text);
+          await DB.bulkSaveCandles(STATE.activeInstrument, candles);
+          STATE.candles = await DB.getAllCandles(STATE.activeInstrument);
+          await DB.saveInstrument(STATE.activeInstrument, { candles: STATE.candles.length });
+          const inst = STATE.instruments.find(i => i.name === STATE.activeInstrument);
+          if (inst) inst.candles = STATE.candles.length;
+          await recalculate();
+          notify(`✓ ${STATE.activeInstrument} — ${candles.length} daily candles loaded | ${STATE.candles[0].date} → ${STATE.candles[STATE.candles.length-1].date}`, 'success');
+          renderSidebar();
+        }
+        event.target.value = '';
+        return;
+      }
+      throw err;
+    }
+
+    if (hourly.length === 0) return notify('No hourly candles found in file', 'error');
+    await DB.bulkSaveHourly(STATE.activeInstrument, hourly);
+
+    const dailies = Parser.extractDailiesFromHourly(hourly);
+    if (dailies.length === 0) return notify('Could not extract daily from hourly', 'error');
+
+    // Show confirmation modal for the most recent extracted daily
+    const target = dailies[dailies.length - 1];
+    const existing = await DB.getCandleByDate(STATE.activeInstrument, target.date);
+    showHourlyConfirm(target, existing, dailies.length, async (confirmed) => {
+      if (!confirmed) return;
+      // Save all extracted daily candles (in case user uploaded multi-day H1)
+      for (const d of dailies) {
+        await DB.addCandle(STATE.activeInstrument, {
+          date: d.date, open: d.open, high: d.high, low: d.low, close: d.close, volume: d.volume
+        });
+      }
+      STATE.candles = await DB.getAllCandles(STATE.activeInstrument);
+      await DB.saveInstrument(STATE.activeInstrument, { candles: STATE.candles.length });
+      const inst = STATE.instruments.find(i => i.name === STATE.activeInstrument);
+      if (inst) inst.candles = STATE.candles.length;
+      await recalculate();
+      renderSidebar();
+      notify(`✓ Extracted daily candle for ${target.date} | Session: ${target.sessionStart.substring(0,5)}–${target.sessionEnd.substring(0,5)} | ${target.candleCount} candles | O:${target.open} H:${target.high} L:${target.low} C:${target.close}`, 'success');
+    });
+  } catch(e) {
+    notify('Hourly upload failed: ' + e.message, 'error');
+  }
+  event.target.value = '';
+}
+
+// Hourly confirmation modal
+function showHourlyConfirm(target, existing, totalDays, callback) {
+  const overlay = document.getElementById('modal-overlay');
+  const title   = document.getElementById('modal-title');
+  const body    = document.getElementById('modal-body');
+  overlay.classList.add('open');
+  title.textContent = 'Confirm Extracted Daily Candle';
+  const warnHtml = target.message ? `<div style="background:rgba(255,160,0,0.1);border:1px solid var(--amber);padding:8px 10px;font-size:11px;color:var(--amber);font-family:var(--mono);margin-bottom:10px;border-radius:2px;">${target.message}</div>` : '';
+  const existingHtml = existing ? `<div style="background:rgba(255,23,68,0.08);border:1px solid var(--red);padding:8px 10px;font-size:11px;color:var(--red);font-family:var(--mono);margin-bottom:10px;border-radius:2px;">⚠ A candle for ${target.date} already exists (O:${existing.open} H:${existing.high} L:${existing.low} C:${existing.close}). Confirming will overwrite it.</div>` : '';
+  const multiDayHtml = totalDays > 1 ? `<div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);margin-bottom:10px;">${totalDays} daily candle${totalDays>1?'s':''} extracted total. All will be added.</div>` : '';
+  body.innerHTML = `
+    ${existingHtml}${warnHtml}${multiDayHtml}
+    <div style="font-size:10px;letter-spacing:1px;color:var(--text-mute);text-transform:uppercase;font-family:var(--mono);margin-bottom:8px;">Latest extracted daily — ${target.date}</div>
+    <table class="stat-table" style="margin-bottom:8px;">
+      <tr><td>Session</td><td><span class="pval" style="color:var(--gold)">${target.sessionStart.substring(0,5)} → ${target.sessionEnd.substring(0,5)}</span></td></tr>
+      <tr><td>Candle Count</td><td><span class="pval" style="color:var(--text)">${target.candleCount}</span></td></tr>
+      <tr><td>Open  (first candle)</td><td><span class="pval" style="color:var(--text)">${target.open}</span></td></tr>
+      <tr><td>High  (max of session)</td><td><span class="pval green">${target.high}</span></td></tr>
+      <tr><td>Low   (min of session)</td><td><span class="pval red">${target.low}</span></td></tr>
+      <tr><td>Close (last candle)</td><td><span class="pval" style="color:var(--text)">${target.close}</span></td></tr>
+    </table>
+    <div class="form-actions">
+      <button class="btn" onclick="closeModalDirect();window._hourlyCb(false);">Cancel</button>
+      <button class="btn btn-gold" onclick="closeModalDirect();window._hourlyCb(true);">Confirm & Save</button>
+    </div>`;
+  window._hourlyCb = callback;
+}
+
+// ── MANUAL ENTRY ──────────────────────────────────────────────
+async function addManualCandle() {
+  const date  = document.getElementById('me-date').value;
+  const open  = parseFloat(document.getElementById('me-open').value);
+  const high  = parseFloat(document.getElementById('me-high').value);
+  const low   = parseFloat(document.getElementById('me-low').value);
+  const close = parseFloat(document.getElementById('me-close').value);
+
+  if (!date) return notify('Enter a date', 'error');
+  if ([open,high,low,close].some(isNaN)) return notify('All OHLC fields required', 'error');
+  if (high < low) return notify('High must be ≥ Low', 'error');
+  if (close < low || close > high) return notify('Close must be between Low and High', 'error');
+  if (open < low || open > high)   return notify('Open must be between Low and High', 'error');
+
+  const existing = await DB.getCandleByDate(STATE.activeInstrument, date);
+  if (existing) {
+    const overwrite = confirm(`Candle for ${date} already exists. Overwrite?`);
+    if (!overwrite) return;
+  }
+
+  await DB.addCandle(STATE.activeInstrument, { date, open, high, low, close, volume: 0 });
+  STATE.candles = await DB.getAllCandles(STATE.activeInstrument);
+  await recalculate();
+  closeModalDirect();
+  notify(`✓ Added candle: ${date} O:${open} H:${high} L:${low} C:${close}`, 'success');
+}
+
+// ── RECALCULATE ──────────────────────────────────────────────
+async function recalculate() {
+  if (!STATE.candles || STATE.candles.length === 0) return;
+  showProgress('Running analyses…', 60);
+  STATE.analyses = Analysis.runAllAnalyses(STATE.candles, { filterDow: STATE.filterDow });
+  STATE.forecast  = Forecast.generateForecast(STATE.analyses, STATE.candles);
+  hideProgress();
+  renderAll();
+  document.getElementById('no-instrument-state').style.display = 'none';
+}
+
+// ── RENDER ALL ────────────────────────────────────────────────
+function renderAll() {
+  if (!STATE.analyses) return;
+  const A = STATE.analyses;
+  const last = STATE.candles[STATE.candles.length - 1];
+
+  // Header bar
+  document.getElementById('hdr-open').textContent  = last.open;
+  document.getElementById('hdr-high').textContent  = last.high;
+  document.getElementById('hdr-low').textContent   = last.low;
+  document.getElementById('hdr-close').textContent = last.close;
+  const arrow = document.getElementById('direction-arrow');
+  const isUp = last.close >= last.open;
+  arrow.textContent = isUp ? '▲' : '▼';
+  arrow.className   = isUp ? 'up' : 'down';
+  const dow = Analysis.DAYS[new Date(last.date + 'T00:00:00').getDay()];
+  document.getElementById('hdr-dow').textContent = `${dow} ${last.date}`;
+
+  // Data warning
+  const warnEl = document.getElementById('data-warning');
+  if (STATE.candles.length < 500) {
+    warnEl.textContent = `⚠ ${STATE.candles.length} candles — 500+ recommended for reliable stats`;
+  } else {
+    warnEl.textContent = '';
+  }
+
+  renderKPIs(A);
+  renderWeeklyCharts(A.weeklyHighLow);
+  renderGapPanel(A.gaps);
+  renderAbnormalPanel(A.abnormal);
+  renderRatioPanel(A.candleRatios);
+  renderThuFriMon(A.thuFriMon, STATE.candles);
+  renderConsecutive(A.consecutive);
+  renderBarPatterns(A.barPatterns);
+  renderBreakContinuation(A.breakCont);
+  renderLowerHighLow(A.lowerHighLow);
+  renderThursdaySpecial(A.thursdaySpecial);
+  renderFractals(A.fractals);
+  renderForecast(STATE.forecast);
+  renderSeasonal(A.seasonal);
+  renderHourly(A.hourlyHighLow);
+  renderHistoryTab();
+  renderAccuracy();
+}
+
+// ── KPIs ──────────────────────────────────────────────────────
+function renderKPIs(A) {
+  const d = A.direction;
+  function setKPI(id, nId, val, n, dayName) {
+    const el = document.getElementById(id);
+    const cls = val >= 65 ? 'high' : val >= 50 ? 'amber' : 'dim';
+    el.textContent = val + '%';
+    el.className = 'kpi-value ' + cls;
+    document.getElementById(nId).textContent = `Based on ${dayName} — n=${n}`;
+  }
+  setKPI('kpi-pc', 'kpi-pc-n', d.PC, d.n, d.dayName);
+  setKPI('kpi-nc', 'kpi-nc-n', d.NC, d.n, d.dayName);
+  setKPI('kpi-hb', 'kpi-hb-n', d.HB, d.n, d.dayName);
+  setKPI('kpi-lb', 'kpi-lb-n', d.LB, d.n, d.dayName);
+}
+
+// ── WEEKLY CHARTS ─────────────────────────────────────────────
+function renderWeeklyCharts(whl) {
+  const days = ['Mon','Tue','Wed','Thu','Fri'];
+  const highData = [1,2,3,4,5].map(d => (whl.highByDow[d] || {pct:0}).pct);
+  const lowData  = [1,2,3,4,5].map(d => (whl.lowByDow[d] || {pct:0}).pct);
+
+  makeBarChart('chart-weekly-high', days, highData, '#E8B85C', 'Weekly High %');
+  makeBarChart('chart-weekly-low',  days, lowData,  '#5B3FFF', 'Weekly Low %');
+}
+
+function makeBarChart(id, labels, data, color, label) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  if (STATE.charts[id]) STATE.charts[id].destroy();
+  STATE.charts[id] = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label, data,
+        backgroundColor: (ctx) => {
+          const c = ctx.chart.ctx; const g = c.createLinearGradient(0, 0, 0, ctx.chart.height);
+          g.addColorStop(0, color + 'CC'); g.addColorStop(1, color + '22'); return g;
+        },
+        borderColor: color, borderWidth: 1, borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(91,63,255,0.08)' }, ticks: { color: '#8E96C7', font: { family: 'JetBrains Mono', size: 10 } } },
+        y: { grid: { color: 'rgba(91,63,255,0.08)' }, ticks: { color: '#8E96C7', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true, max: 100 }
+      }
+    }
+  });
+}
+
+// ── GAP PANEL ─────────────────────────────────────────────────
+function renderGapPanel(gaps) {
+  const el = document.getElementById('gap-panel');
+  if (!gaps || gaps.total === 0) { el.innerHTML = '<div class="empty-state" style="min-height:80px"><span class="es-sub">No gaps detected</span></div>'; return; }
+  el.innerHTML = `
+    <table class="stat-table">
+      <tr><td>Gap Frequency</td><td><span class="pval ${pClass(gaps.pctOfCandles)}">${gaps.pctOfCandles}%</span> <span class="text-dim" style="font-size:10px;color:var(--text-mute)">(n=${gaps.total})</span></td></tr>
+      <tr><td>Avg Gap Size</td><td><span class="pval" style="color:var(--text)">${gaps.avgSize}</span></td></tr>
+      <tr><td>Fill Same Day</td><td>${probBar(gaps.fillSameDay)}</td></tr>
+      <tr><td>Fill Within 1 Day</td><td>${probBar(gaps.fill1Day)}</td></tr>
+      <tr><td>Fill Within 2 Days</td><td>${probBar(gaps.fill2Day)}</td></tr>
+      <tr><td>Fill Within 3 Days</td><td>${probBar(gaps.fill3Day)}</td></tr>
+      <tr><td>Fill Within 1 Week</td><td>${probBar(gaps.fill1Week)}</td></tr>
+    </table>`;
+}
+
+// ── ABNORMAL PANEL ────────────────────────────────────────────
+function renderAbnormalPanel(ab) {
+  const el = document.getElementById('abnormal-panel');
+  if (!ab || ab.total === 0) { el.innerHTML = '<div class="empty-state" style="min-height:80px"><span class="es-sub">No abnormal candles found</span></div>'; return; }
+  const recentRows = ab.recentFive.map(c =>
+    `<tr><td>${c.date}</td><td><span class="${c.direction === 'UP' ? 'pval green' : 'pval red'}">${c.direction}</span></td><td>${c.multiple}×</td><td><span class="${c.nextPos ? 'pval green' : 'pval red'}">${c.nextPos ? '↑' : '↓'}</span></td></tr>`
+  ).join('');
+  el.innerHTML = `
+    <table class="stat-table" style="margin-bottom:8px;">
+      <tr><td>Total Abnormal Candles</td><td><span class="pval amber">${ab.total}</span></td></tr>
+      <tr><td>After Up Abnormal → Next Pos</td><td>${probBar(ab.afterUp.nextPos)} <span style="font-size:10px;color:var(--text-mute)">(n=${ab.upCount})</span></td></tr>
+      <tr><td>After Down Abnormal → Next Pos</td><td>${probBar(ab.afterDown.nextPos)} <span style="font-size:10px;color:var(--text-mute)">(n=${ab.downCount})</span></td></tr>
+    </table>
+    <div style="font-size:9px;letter-spacing:1px;color:var(--text-mute);margin:8px 0 4px;text-transform:uppercase;">Recent Abnormals</div>
+    <table class="stat-table"><thead><tr><th>Date</th><th>Dir</th><th>Size</th><th>Next</th></tr></thead><tbody>${recentRows}</tbody></table>`;
+}
+
+// ── RATIO PANEL ───────────────────────────────────────────────
+function renderRatioPanel(ratios) {
+  const el = document.getElementById('ratio-panel');
+  if (!ratios) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <table class="stat-table">
+      <thead><tr><th>Condition</th><th>Next Day Positive %</th><th>n</th></tr></thead>
+      <tbody>
+        <tr><td>High Body Ratio (&gt;60%) <span class="tooltip-wrap"><span class="tooltip-icon">?</span><span class="tooltip-box">Candle body is >60% of the total range — strong directional conviction.</span></span></td><td>${probBar(ratios.highBodyRatio.nextPos)}</td><td>${ratios.highBodyRatio.n}</td></tr>
+        <tr><td>Closed Above Midpoint</td><td>${probBar(ratios.aboveMidpoint.nextPos)}</td><td>${ratios.aboveMidpoint.n}</td></tr>
+        <tr><td>Closed Below Midpoint</td><td>${probBar(ratios.belowMidpoint.nextPos)}</td><td>${ratios.belowMidpoint.n}</td></tr>
+        <tr><td>Large Range Candle (&gt;1.5× Avg)</td><td>${probBar(ratios.largeRange.nextPos)}</td><td>${ratios.largeRange.n}</td></tr>
+        <tr><td>Average Daily Range</td><td colspan="2"><span class="pval" style="color:var(--gold)">${ratios.avgRange}</span></td></tr>
+      </tbody>
+    </table>`;
+}
+
+// ── THU/FRI/MON ───────────────────────────────────────────────
+function renderThuFriMon(data, candles) {
+  const el = document.getElementById('thufrimon-panel');
+  if (!data) { el.innerHTML = ''; return; }
+
+  // Detect current week pattern
+  const last = candles[candles.length - 1];
+  const lastDow = new Date(last.date + 'T00:00:00').getDay();
+  let currentPattern = null;
+  if (lastDow === 5 || lastDow === 1) {
+    const thu = candles.slice().reverse().find(c => new Date(c.date + 'T00:00:00').getDay() === 4);
+    const fri = candles.slice().reverse().find(c => new Date(c.date + 'T00:00:00').getDay() === 5);
+    if (thu && fri) {
+      const tp = thu.close > thu.open;
+      const fp = fri.close > fri.open;
+      currentPattern = tp && fp ? 'C' : !tp && !fp ? 'D' : !tp && fp ? 'A' : 'B';
+    }
+  }
+
+  const rows = data.map(p => {
+    const isActive = p.pattern === currentPattern;
+    const bias = p.bullPct > p.bearPct ? 'badge-green' : p.bearPct > p.bullPct ? 'badge-red' : 'badge-gray';
+    return `<tr style="${isActive ? 'background:rgba(255,215,0,0.06);' : ''}">
+      <td><strong style="color:var(--gold)">Pattern ${p.pattern}</strong></td>
+      <td>${p.label}</td>
+      <td>${probBar(p.bullPct, 'green')}</td>
+      <td>${probBar(p.bearPct, 'red')}</td>
+      <td><span class="badge ${bias}">${p.bias}</span></td>
+      <td style="color:var(--text-mute)">${nWarn(p.n)}</td>
+      ${isActive ? '<td><span class="badge badge-gold">◀ ACTIVE</span></td>' : '<td></td>'}
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `<table class="stat-table">
+    <thead><tr><th>Pattern</th><th>Condition</th><th>Mon Bullish</th><th>Mon Bearish</th><th>Bias</th><th>n</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── CONSECUTIVE ───────────────────────────────────────────────
+function renderConsecutive(data) {
+  const el1 = document.getElementById('consec-up-panel');
+  const el2 = document.getElementById('consec-down-panel');
+  function makeTable(rows, dir) {
+    if (!rows || rows.length === 0) return '<div class="empty-state" style="min-height:60px"><span class="es-sub">Insufficient data</span></div>';
+    return `<table class="stat-table">
+      <thead><tr><th>Sequence</th><th>Next Pos%</th><th>Next Neg%</th><th>n</th><th></th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td>${r.run}+ ${dir}</td>
+        <td><span class="pval ${pClass(r.nextPos)}">${r.nextPos}%</span></td>
+        <td><span class="pval ${pClass(r.nextNeg)}">${r.nextNeg}%</span></td>
+        <td>${nWarn(r.n)}</td>
+        <td>${r.reversalZone ? '<span class="badge badge-amber">⚡ REVERSAL</span>' : ''}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }
+  el1.innerHTML = makeTable(data.posTable, '↑');
+  el2.innerHTML = makeTable(data.negTable, '↓');
+}
+
+// ── BAR PATTERNS ──────────────────────────────────────────────
+function renderBarPatterns(data) {
+  const ib = data.insideBar;
+  const ob = data.engulfing;
+
+  document.getElementById('insidebar-panel').innerHTML = `
+    <table class="stat-table">
+      <tr><td>Total Inside Bars</td><td><span class="pval" style="color:var(--text)">${ib.total}</span></td></tr>
+      <tr><td>Next Day Positive</td><td>${probBar(ib.nextPos)} ${nWarn(ib.total)}</td></tr>
+      <tr><td>Next Day Range Expands</td><td>${probBar(ib.expansion)} ${nWarn(ib.total)}</td></tr>
+    </table>`;
+
+  const dowRows = ob.byDow.filter(d => d.count > 0 && d.dow >= 1 && d.dow <= 5).map(d =>
+    `<tr><td>${d.name}</td><td>${probBar(d.pct, 'blue')}</td><td>${d.count}</td></tr>`
+  ).join('');
+
+  document.getElementById('outsidebar-panel').innerHTML = `
+    <div style="margin-bottom:8px;">
+      <table class="stat-table">
+        <tr><td>Total Outside Bars</td><td><span class="pval" style="color:var(--text)">${ob.total}</span></td></tr>
+        <tr><td>Next Day Breaks High</td><td>${probBar(ob.breakHigh, 'green')}</td></tr>
+        <tr><td>Next Day Breaks Low</td><td>${probBar(ob.breakLow, 'red')}</td></tr>
+      </table>
+    </div>
+    <div style="font-size:9px;letter-spacing:1px;color:var(--text-mute);margin-bottom:4px;text-transform:uppercase;">Frequency by Weekday</div>
+    <table class="stat-table"><thead><tr><th>Day</th><th>% of Engulfings</th><th>Count</th></tr></thead><tbody>${dowRows}</tbody></table>`;
+}
+
+// ── BREAK CONTINUATION ────────────────────────────────────────
+function renderBreakContinuation(data) {
+  function makePanel(elId, bk, label) {
+    const el = document.getElementById(elId);
+    const dowRows = bk.byDow.filter(d => d.count > 5 && d.dow >= 1 && d.dow <= 5).map(d =>
+      `<tr><td>${d.name}</td><td>${d.count}</td><td>${probBar(d.contPct)}</td></tr>`
+    ).join('');
+    el.innerHTML = `
+      <table class="stat-table" style="margin-bottom:8px;">
+        <tr><td>Total ${label} Breaks</td><td><span class="pval" style="color:var(--text)">${bk.total}</span></td></tr>
+        <tr><td>Continuation (50% target)</td><td>${probBar(bk.continuation)} ${nWarn(bk.total)}</td></tr>
+      </table>
+      <div style="font-size:9px;letter-spacing:1px;color:var(--text-mute);margin-bottom:4px;text-transform:uppercase;">By Weekday</div>
+      <table class="stat-table"><thead><tr><th>Day</th><th>Count</th><th>Continuation%</th></tr></thead><tbody>${dowRows}</tbody></table>`;
+  }
+  makePanel('hbreak-panel', data.highBreak, 'High');
+  makePanel('lbreak-panel', data.lowBreak, 'Low');
+}
+
+// ── LOWER HIGH/LOW ────────────────────────────────────────────
+function renderLowerHighLow(data) {
+  const lh = data.lowerHigh;
+  const tll = data.tuesdayLL;
+  document.getElementById('lowerhigh-panel').innerHTML = `
+    <table class="stat-table">
+      <tr><td>Total Lower High Days</td><td><span class="pval" style="color:var(--text)">${lh.total}</span></td></tr>
+      <tr><td>Next Day Positive</td><td>${probBar(lh.nextDayPos)} ${nWarn(lh.total)}</td></tr>
+      <tr><td>Breaks Yesterday's High Next Day</td><td>${probBar(lh.breaksHigh)}</td></tr>
+      <tr><td>Extends Lower Next Day</td><td>${probBar(lh.extendsLow)}</td></tr>
+      <tr><td colspan="2" style="padding-top:8px;color:var(--text-mute);font-size:10px;">Sub-conditions:</td></tr>
+      <tr><td>Lower High + Positive Close → Next Pos</td><td>${probBar(lh.ifPosClose.nextPos)} <span style="font-size:10px;color:var(--text-mute)">(n=${lh.ifPosClose.n})</span></td></tr>
+      <tr><td>Lower High + Negative Close → Next Pos</td><td>${probBar(lh.ifNegClose.nextPos)} <span style="font-size:10px;color:var(--text-mute)">(n=${lh.ifNegClose.n})</span></td></tr>
+    </table>`;
+
+  document.getElementById('tuell-panel').innerHTML = `
+    <table class="stat-table">
+      <tr><td>Total Tue Lower Lows</td><td><span class="pval" style="color:var(--text)">${tll.total}</span></td></tr>
+      <tr><td>Becomes Weekly Low</td><td>${probBar(tll.becomesWeekLow)} ${nWarn(tll.total)}</td></tr>
+      <tr><td>Tuesday Closes Positive</td><td>${probBar(tll.closesPositive)}</td></tr>
+      <tr><td colspan="2" style="padding-top:8px;color:var(--text-mute);font-size:10px;">Mon Neg + Tue LL → Tue Closes Pos:</td></tr>
+      <tr><td>Probability</td><td>${probBar(tll.monNegPlus.closesPos)} <span style="font-size:10px;color:var(--text-mute)">(n=${tll.monNegPlus.n})</span></td></tr>
+    </table>`;
+}
+
+// ── THURSDAY SPECIAL ──────────────────────────────────────────
+function renderThursdaySpecial(data) {
+  const el = document.getElementById('thuspecial-panel');
+  if (!data || data.total === 0) {
+    el.innerHTML = '<div class="empty-state" style="min-height:60px"><span class="es-sub">Pattern not yet found in dataset</span></div>';
+    return;
+  }
+  el.innerHTML = `
+    <table class="stat-table">
+      <thead><tr><th>Metric</th><th>Value</th><th>n</th></tr></thead>
+      <tbody>
+        <tr><td>Thu Engulfing + Neg + Weekly High — Occurrences</td><td><span class="pval amber">${data.total}</span></td><td></td></tr>
+        <tr><td>Friday Closes Positive</td><td>${probBar(data.friPositive)}</td><td>${nWarn(data.total)}</td></tr>
+        <tr><td>Friday Breaks Thursday High</td><td>${probBar(data.friBreakHigh)}</td><td>${nWarn(data.total)}</td></tr>
+        <tr><td>Friday Breaks Thursday Low</td><td>${probBar(data.friBreakLow)}</td><td>${nWarn(data.total)}</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:9px;letter-spacing:1px;color:var(--text-mute);margin:10px 0 4px;text-transform:uppercase;">By Thu Body/Range Ratio</div>
+    <table class="stat-table">
+      <thead><tr><th>Body Ratio</th><th>Count</th><th>Fri Positive %</th></tr></thead>
+      <tbody>
+        <tr><td>&lt; 0.3 (Small Body)</td><td>${data.byBodyRatio.low.n}</td><td>${probBar(data.byBodyRatio.low.friPos)}</td></tr>
+        <tr><td>0.3–0.6 (Medium Body)</td><td>${data.byBodyRatio.mid.n}</td><td>${probBar(data.byBodyRatio.mid.friPos)}</td></tr>
+        <tr><td>&gt; 0.6 (Large Body)</td><td>${data.byBodyRatio.high.n}</td><td>${probBar(data.byBodyRatio.high.friPos)}</td></tr>
+      </tbody>
+    </table>`;
+}
+
+// ── FRACTALS ──────────────────────────────────────────────────
+function renderFractals(data) {
+  function makeTable(patterns, elId) {
+    const el = document.getElementById(elId);
+    if (!patterns || patterns.length === 0) {
+      el.innerHTML = '<div class="empty-state" style="min-height:60px"><span class="es-sub">No recurring patterns with n≥15 found</span></div>';
+      return;
+    }
+    const rows = patterns.slice(0, 15).map(p => {
+      const bias = p.bias === 'BULLISH' ? 'badge-green' : p.bias === 'BEARISH' ? 'badge-red' : 'badge-gray';
+      return `<tr>
+        <td style="font-size:9px;color:var(--text-mute);max-width:200px;overflow:hidden;text-overflow:ellipsis;">${p.pattern}</td>
+        <td><span class="pval ${pClass(p.nextPos)}">${p.nextPos}%</span></td>
+        <td><span class="pval ${pClass(p.nextNeg)}">${p.nextNeg}%</span></td>
+        <td>${p.n}</td>
+        <td><span class="badge ${bias}">${p.bias}</span></td>
+        <td style="font-size:9px;color:var(--text-mute)">${p.lastDate||'—'}</td>
+      </tr>`;
+    }).join('');
+    el.innerHTML = `<table class="stat-table">
+      <thead><tr><th>Pattern</th><th>Next↑%</th><th>Next↓%</th><th>n</th><th>Bias</th><th>Last Seen</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+  makeTable(data.threeCandle, 'fractal3-panel');
+  makeTable(data.fiveCandle,  'fractal5-panel');
+}
+
+// ── FORECAST ──────────────────────────────────────────────────
+function renderForecast(fc) {
+  if (!fc) return;
+
+  document.getElementById('forecast-date').textContent = fc.date;
+
+  // KPIs
+  document.getElementById('forecast-kpis').innerHTML = [
+    { label: 'P.C — Positive Close', val: fc.KPIs.PC, cls: pClass(fc.KPIs.PC) },
+    { label: 'N.C — Negative Close', val: fc.KPIs.NC, cls: pClass(fc.KPIs.NC) },
+    { label: 'H.B — High Break',     val: fc.KPIs.HB, cls: pClass(fc.KPIs.HB) },
+    { label: 'L.B — Low Break',      val: fc.KPIs.LB, cls: pClass(fc.KPIs.LB) },
+  ].map(k => `<div class="fkpi">
+    <div class="fkpi-label">${k.label}</div>
+    <div class="fkpi-val pval ${k.cls}">${k.val}%</div>
+    <div style="font-size:9px;color:var(--text-mute)">n=${fc.KPIs.n}</div>
+  </div>`).join('');
+
+  // Signals
+  const signalRows = fc.signals.map(s => {
+    const icon = s.bias === 'BULLISH' ? '<span style="color:var(--green)">✓</span>' : s.bias === 'BEARISH' ? '<span style="color:var(--red)">✓</span>' : '<span style="color:var(--text-mute)">–</span>';
+    const clr  = s.bias === 'BULLISH' ? 'var(--green)' : s.bias === 'BEARISH' ? 'var(--red)' : 'var(--text-mute)';
+    return `<div class="signal-row">
+      <span class="signal-icon">${icon}</span>
+      <span class="signal-name">${s.name}</span>
+      <span class="signal-desc">${s.description}</span>
+      <span class="signal-n" style="margin-left:8px;min-width:40px;text-align:right;">(n=${s.n})</span>
+      <span style="margin-left:8px;color:${clr};font-weight:700;min-width:55px;text-align:right;">${s.bias}</span>
+    </div>`;
+  }).join('') || '<div style="color:var(--text-mute);font-size:11px;font-family:var(--mono)">No signals with sufficient data (n≥20)</div>';
+  document.getElementById('forecast-signals').innerHTML = `<div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-mute);margin-bottom:6px;">Active Patterns Detected</div>${signalRows}`;
+
+  // Scenarios
+  document.getElementById('forecast-scenarios').innerHTML = `
+    <div class="scenario">
+      <div class="scenario-label">Scenario A — Bullish</div>
+      <div class="scenario-val" style="color:var(--green)">Target: ${fc.scenarioBull}</div>
+      <div style="font-size:10px;color:var(--text-mute)">Break today's High + avg range</div>
+    </div>
+    <div class="scenario">
+      <div class="scenario-label">Scenario B — Bearish</div>
+      <div class="scenario-val" style="color:var(--red)">Target: ${fc.scenarioBear}</div>
+      <div style="font-size:10px;color:var(--text-mute)">Break today's Low − avg range</div>
+    </div>
+    <div class="scenario">
+      <div class="scenario-label">Scenario C — Range</div>
+      <div class="scenario-val" style="color:var(--text-mute)">${fc.scenarioRange.l} — ${fc.scenarioRange.h}</div>
+      <div style="font-size:10px;color:var(--text-mute)">Stay within today's range</div>
+    </div>`;
+
+  // Verdict
+  const biasClr = fc.overallBias === 'BULLISH' ? 'var(--green)' : fc.overallBias === 'BEARISH' ? 'var(--red)' : 'var(--text-mute)';
+  document.getElementById('forecast-verdict').innerHTML = `
+    <div>
+      <div class="verdict-bias ${fc.overallBias}">${fc.overallBias}</div>
+      <div style="font-size:10px;color:var(--text-mute);font-family:var(--mono);margin-top:4px;">${fc.bullish} bullish / ${fc.bearish} bearish / ${fc.total} total signals</div>
+    </div>
+    <div class="verdict-conf">
+      <span class="conf-badge ${fc.confidence}">${fc.confidence} CONFIDENCE</span>
+      <span class="verdict-meta">${fc.agreePct}% signal agreement</span>
+    </div>`;
+
+  // Save forecast report
+  saveReport(fc);
+}
+
+// ── SEASONAL ──────────────────────────────────────────────────
+function renderSeasonal(seasonal) {
+  const el = document.getElementById('seasonal-panel');
+  if (!seasonal || seasonal.heatmap.length === 0) { el.innerHTML = '<div class="empty-state" style="min-height:60px"><span class="es-sub">Insufficient data</span></div>'; return; }
+
+  const dows = ['Mon','Tue','Wed','Thu','Fri'];
+  let html = `<div class="heatmap-grid">
+    <div class="hm-header"></div>
+    ${dows.map(d => `<div class="hm-header">${d}</div>`).join('')}`;
+
+  seasonal.heatmap.forEach(row => {
+    html += `<div class="hm-row-label">W${row.week}</div>`;
+    row.days.forEach(day => {
+      const intensity = Math.round(day.highPct / 100 * 200);
+      const bg = day.highPct > 30 ? `rgba(245,158,11,${day.highPct/100 * 0.75})` : `rgba(109,40,217,${day.lowPct/100 * 0.55})`;
+      html += `<div class="hm-cell" style="background:${bg}" title="W${row.week} ${dows[day.dow-1]}: High ${day.highPct}% / Low ${day.lowPct}%">${day.highPct > 0 ? day.highPct+'%' : ''}</div>`;
+    });
+  });
+  html += '</div>';
+  el.innerHTML = `<div style="overflow-x:auto;overflow-y:auto;max-height:400px;">${html}</div>
+    <div style="font-size:10px;color:var(--text-mute);margin-top:8px;">Gold = Weekly High probability. Red = Weekly Low probability.</div>`;
+}
+
+// ── HOURLY ────────────────────────────────────────────────────
+function renderHourly(hl) {
+  const el = document.getElementById('hourly-panel');
+  if (!hl || hl.totalDays === 0) {
+    el.innerHTML = '<div class="empty-state" style="min-height:60px"><span class="es-icon">🕐</span><span class="es-sub">Upload 1H CSV files to build hourly high/low formation data</span></div>';
+    return;
+  }
+  el.innerHTML = `<div class="grid-2">
+    <div><div style="font-size:10px;color:var(--text-mute);margin-bottom:6px;">Daily High Formation Hours</div><div class="chart-wrap-sm"><canvas id="chart-hourly-high"></canvas></div></div>
+    <div><div style="font-size:10px;color:var(--text-mute);margin-bottom:6px;">Daily Low Formation Hours</div><div class="chart-wrap-sm"><canvas id="chart-hourly-low"></canvas></div></div>
+  </div>`;
+
+  const hours = Array.from({length:24}, (_,i) => i+'h');
+  setTimeout(() => {
+    makeBarChart('chart-hourly-high', hours, hl.highByHour.map(h => h.pct), '#FFD700', 'Daily High %');
+    makeBarChart('chart-hourly-low',  hours, hl.lowByHour.map(h => h.pct),  '#FF1744', 'Daily Low %');
+  }, 50);
+}
+
+// ── HISTORY TAB ───────────────────────────────────────────────
+function renderHistoryTab() {
+  const el = document.getElementById('history-panel');
+  const reports = STATE.reports.filter(r => r.instrument === STATE.activeInstrument);
+  if (!reports || reports.length === 0) {
+    el.innerHTML = '<div class="empty-state" style="min-height:100px"><span class="es-sub">No saved forecasts yet</span></div>';
+    return;
+  }
+  const rows = reports.slice().reverse().map(r => {
+    const biasClass = r.bias === 'BULLISH' ? 'badge-green' : r.bias === 'BEARISH' ? 'badge-red' : 'badge-gray';
+    const actual = r.actualOutcome ? `<span class="${r.correct ? 'badge badge-green' : 'badge badge-red'}">${r.correct ? '✓ CORRECT' : '✗ WRONG'}</span>` : '<span style="color:var(--text-mute);font-size:10px;">Pending</span>';
+    return `<tr>
+      <td style="font-family:var(--mono)">${r.date}</td>
+      <td><span class="badge ${biasClass}">${r.bias}</span></td>
+      <td><span class="conf-badge ${r.confidence}">${r.confidence}</span></td>
+      <td><span class="pval ${pClass(r.PC)}">${r.PC}%</span> / <span class="pval ${pClass(r.NC)}">${r.NC}%</span></td>
+      <td>${actual}</td>
+      <td><button class="btn" style="font-size:10px;padding:2px 8px" onclick="exportReportPDF('${r.date}')">PDF</button></td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<table class="stat-table">
+    <thead><tr><th>Date</th><th>Bias</th><th>Confidence</th><th>PC / NC</th><th>Outcome</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── ACCURACY ──────────────────────────────────────────────────
+function renderAccuracy() {
+  const reports = STATE.reports.filter(r => r.instrument === STATE.activeInstrument && r.actualOutcome !== null);
+  const total = reports.length;
+  const correct = reports.filter(r => r.correct).length;
+  const pct = total > 0 ? Math.round(correct/total*100) : null;
+  document.getElementById('acc-value').textContent = pct !== null ? pct + '%' : '—';
+  document.getElementById('acc-detail').textContent = total > 0 ? `(${correct}/${total} forecasts)` : '(no completed forecasts yet)';
+}
+
+// ── REPORT STORAGE ────────────────────────────────────────────
+function saveReport(fc) {
+  const key = `alkhal227_reports`;
+  STATE.reports = JSON.parse(localStorage.getItem(key) || '[]');
+  const existing = STATE.reports.findIndex(r => r.instrument === STATE.activeInstrument && r.date === fc.date);
+  const report = {
+    instrument: STATE.activeInstrument,
+    date: fc.date,
+    bias: fc.overallBias,
+    confidence: fc.confidence,
+    agreePct: fc.agreePct,
+    PC: fc.KPIs.PC, NC: fc.KPIs.NC, HB: fc.KPIs.HB, LB: fc.KPIs.LB,
+    signals: fc.signals.map(s => ({ name: s.name, bias: s.bias, p: s.bullPct })),
+    scenarios: { bull: fc.scenarioBull, bear: fc.scenarioBear },
+    actualOutcome: null, correct: null,
+    savedAt: Date.now()
+  };
+  if (existing > -1) STATE.reports[existing] = { ...STATE.reports[existing], ...report };
+  else STATE.reports.push(report);
+  localStorage.setItem(key, JSON.stringify(STATE.reports));
+  renderHistory();
+}
+
+function loadReports() {
+  STATE.reports = JSON.parse(localStorage.getItem('alkhal227_reports') || '[]');
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  const reports = STATE.reports.filter(r => r.instrument === STATE.activeInstrument);
+  if (!reports || reports.length === 0) { list.innerHTML = '<div style="padding:8px 12px;font-size:10px;color:var(--text-mute);font-family:var(--mono);">No reports yet</div>'; return; }
+  list.innerHTML = reports.slice().reverse().slice(0, 20).map(r => {
+    const biasClass = r.bias === 'BULLISH' ? 'BULLISH' : r.bias === 'BEARISH' ? 'BEARISH' : 'NEUTRAL';
+    return `<div class="history-item" onclick="switchTab('history')">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="hist-date">${r.date}</span>
+        <span class="hist-bias ${biasClass}">${r.bias}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:2px;">
+        <span class="hist-accuracy">PC:${r.PC}% NC:${r.NC}%</span>
+        <span class="conf-badge ${r.confidence}" style="font-size:9px;padding:0 5px;">${r.confidence}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── SIDEBAR RENDER ────────────────────────────────────────────
+function renderSidebar() {
+  const list = document.getElementById('instrument-list');
+  list.innerHTML = STATE.instruments.map(inst => `
+    <div class="instrument-item ${inst.name === STATE.activeInstrument ? 'active' : ''}" onclick="switchInstrument('${inst.name}')">
+      <div>
+        <div class="inst-name">${inst.name}</div>
+        <div class="inst-count">${inst.candles || 0} candles</div>
+      </div>
+      <button class="del-btn" onclick="event.stopPropagation(); deleteInstrument('${inst.name}')">✕</button>
+    </div>`
+  ).join('') || '<div style="padding:6px 8px;font-size:10px;color:var(--text-mute);font-family:var(--mono);">No instruments</div>';
+}
+
+// ── TABS ──────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + tab));
+  if (tab === 'forecast' && STATE.forecast) renderForecast(STATE.forecast);
+  if (tab === 'history') renderHistoryTab();
+}
+
+// ── DOW FILTER ────────────────────────────────────────────────
+function toggleDow(dow) {
+  STATE.filterDow = STATE.filterDow === dow ? null : dow;
+  document.querySelectorAll('.dow-pill').forEach(p => {
+    p.classList.toggle('active', parseInt(p.dataset.dow) === STATE.filterDow);
+  });
+  if (STATE.candles.length > 0) recalculate();
+}
+
+// ── MODALS ────────────────────────────────────────────────────
+function openModal(type) {
+  const overlay = document.getElementById('modal-overlay');
+  const title   = document.getElementById('modal-title');
+  const body    = document.getElementById('modal-body');
+  overlay.classList.add('open');
+
+  if (type === 'new-instrument') {
+    title.textContent = 'Add Instrument';
+    body.innerHTML = `
+      <div class="form-group">
+        <label class="form-label">Instrument Name (e.g. EURUSD, GOLD)</label>
+        <input class="form-input" id="new-inst-name" placeholder="EURUSD" maxlength="20" autofocus>
+      </div>
+      <div class="form-actions">
+        <button class="btn" onclick="closeModalDirect()">Cancel</button>
+        <button class="btn btn-gold" onclick="addInstrument(document.getElementById('new-inst-name').value)">Add</button>
+      </div>`;
+    setTimeout(() => document.getElementById('new-inst-name')?.focus(), 50);
+  }
+
+  if (type === 'manual-entry') {
+    if (!STATE.activeInstrument) { closeModalDirect(); return notify('Select an instrument first', 'warn'); }
+    const today = new Date().toISOString().split('T')[0];
+    title.textContent = `Add OHLC — ${STATE.activeInstrument}`;
+    body.innerHTML = `
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input class="form-input" id="me-date" type="date" value="${today}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Open</label>
+          <input class="form-input" id="me-open" type="number" step="any" placeholder="1.08500">
+        </div>
+        <div class="form-group">
+          <label class="form-label">High</label>
+          <input class="form-input" id="me-high" type="number" step="any" placeholder="1.09200">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Low</label>
+          <input class="form-input" id="me-low" type="number" step="any" placeholder="1.08100">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Close</label>
+          <input class="form-input" id="me-close" type="number" step="any" placeholder="1.08900">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn" onclick="closeModalDirect()">Cancel</button>
+        <button class="btn btn-gold" onclick="addManualCandle()">Add to Dataset</button>
+      </div>`;
+  }
+}
+
+function closeModal(event) {
+  if (event.target === document.getElementById('modal-overlay')) closeModalDirect();
+}
+function closeModalDirect() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+// ── PROGRESS ──────────────────────────────────────────────────
+function showProgress(msg, pct) {
+  document.getElementById('progress-bar-wrap').classList.add('visible');
+  document.getElementById('progress-label').textContent = msg;
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+function hideProgress() {
+  setTimeout(() => document.getElementById('progress-bar-wrap').classList.remove('visible'), 300);
+}
+
+// ── NOTIFY ────────────────────────────────────────────────────
+function notify(msg, type = '') {
+  const notif = document.getElementById('notif');
+  const el = document.createElement('div');
+  el.className = 'notif-item ' + type;
+  el.textContent = msg;
+  notif.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }, 4000);
+}
+
+// ── PDF EXPORT ────────────────────────────────────────────────
+function exportPDF() {
+  if (!STATE.forecast) return notify('No forecast to export', 'warn');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const fc = STATE.forecast;
+  const A  = STATE.analyses;
+
+  doc.setFillColor(13, 17, 23);
+  doc.rect(0, 0, 210, 297, 'F');
+  doc.setTextColor(255, 215, 0);
+  doc.setFontSize(18); doc.setFont('courier', 'bold');
+  doc.text('ALKHAL227', 14, 20);
+  doc.setFontSize(10); doc.setFont('courier', 'normal');
+  doc.setTextColor(139, 148, 158);
+  doc.text('Statistical Analysis Engine', 14, 27);
+  doc.text(`Instrument: ${STATE.activeInstrument}  |  Date: ${fc.date}`, 14, 33);
+  doc.text(`Dataset: ${A.totalCandles} candles from ${A.firstDate} to ${A.lastDate}`, 14, 39);
+
+  doc.setDrawColor(48, 54, 61);
+  doc.line(14, 42, 196, 42);
+
+  doc.setFontSize(12); doc.setFont('courier', 'bold'); doc.setTextColor(230, 237, 243);
+  doc.text('NEXT-DAY FORECAST', 14, 50);
+  doc.setFontSize(10); doc.setFont('courier', 'normal');
+
+  const bias = fc.overallBias === 'BULLISH' ? [0,200,83] : fc.overallBias === 'BEARISH' ? [255,23,68] : [139,148,158];
+  doc.setTextColor(...bias);
+  doc.setFontSize(14); doc.setFont('courier', 'bold');
+  doc.text(`${fc.overallBias}  |  ${fc.confidence} CONFIDENCE (${fc.agreePct}%)`, 14, 58);
+
+  doc.setFontSize(10); doc.setFont('courier', 'normal'); doc.setTextColor(139, 148, 158);
+  doc.text(`P.C: ${fc.KPIs.PC}%  |  N.C: ${fc.KPIs.NC}%  |  H.B: ${fc.KPIs.HB}%  |  L.B: ${fc.KPIs.LB}%`, 14, 66);
+  doc.line(14, 68, 196, 68);
+
+  doc.setTextColor(230, 237, 243);
+  doc.text('Active Signals:', 14, 74);
+  let y = 80;
+  fc.signals.forEach(s => {
+    const c = s.bias === 'BULLISH' ? [0,200,83] : s.bias === 'BEARISH' ? [255,23,68] : [102,102,102];
+    doc.setTextColor(...c);
+    doc.text(`• ${s.name}: ${s.bias} (n=${s.n})`, 14, y);
+    doc.setTextColor(139,148,158);
+    doc.text(`  ${s.description}`, 14, y+4);
+    y += 10;
+  });
+
+  y += 4;
+  doc.setDrawColor(48,54,61); doc.line(14, y, 196, y); y += 6;
+  doc.setTextColor(230,237,243);
+  doc.text(`Scenario A (Bullish): ${fc.scenarioBull}`, 14, y); y += 6;
+  doc.text(`Scenario B (Bearish): ${fc.scenarioBear}`, 14, y); y += 6;
+  doc.text(`Scenario C (Range):   ${fc.scenarioRange.l} — ${fc.scenarioRange.h}`, 14, y); y += 10;
+
+  doc.setDrawColor(48,54,61); doc.line(14, y, 196, y); y += 6;
+  doc.setTextColor(72,79,88); doc.setFontSize(8);
+  doc.text('ALKHAL227 | Statistical Analysis Engine', 14, y); y += 4;
+  doc.text('© All Rights Reserved — ALKHAL_YOUSEF_FUAD_KAMEL | Built with Claude Design', 14, y); y += 4;
+  doc.text('All times are Broker Time as uploaded. Past performance does not guarantee future results.', 14, y);
+
+  doc.save(`ALKHAL227_${STATE.activeInstrument}_${fc.date}.pdf`);
+  notify('PDF exported', 'success');
+}
+
+function exportReportPDF(date) {
+  const report = STATE.reports.find(r => r.instrument === STATE.activeInstrument && r.date === date);
+  if (!report) return notify('Report not found', 'error');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14); doc.text(`ALKHAL227 — ${STATE.activeInstrument} — ${date}`, 14, 20);
+  doc.setFontSize(10);
+  doc.text(`Bias: ${report.bias} | Confidence: ${report.confidence} | Agreement: ${report.agreePct}%`, 14, 30);
+  doc.text(`P.C: ${report.PC}%  |  N.C: ${report.NC}%  |  H.B: ${report.HB}%  |  L.B: ${report.LB}%`, 14, 40);
+  let y = 50;
+  report.signals.forEach(s => { doc.text(`• ${s.name}: ${s.bias}`, 14, y); y += 7; });
+  doc.setFontSize(8);
+  doc.text('© ALKHAL_YOUSEF_FUAD_KAMEL — All Rights Reserved', 14, 280);
+  doc.save(`ALKHAL227_Report_${STATE.activeInstrument}_${date}.pdf`);
+}
+
+// ── HELPERS ───────────────────────────────────────────────────
+function pClass(v) { return v >= 65 ? 'high' : v >= 50 ? 'amber' : 'dim'; }
+function nWarn(n) { return n < 15 ? '<span class="badge badge-warn" style="font-size:9px;">⚠ n='+n+'</span>' : `<span style="font-size:10px;color:var(--text-mute)">n=${n}</span>`; }
+
+function probBar(val, color) {
+  const cls = color ? color : val >= 65 ? 'gold' : val >= 50 ? 'amber' : 'red';
+  return `<div class="prob-bar-wrap">
+    <div class="prob-bar"><div class="prob-bar-fill ${cls}" style="width:${val}%"></div></div>
+    <span class="pval ${pClass(val)}" style="min-width:36px;text-align:right;">${val}%</span>
+  </div>`;
+}
+
+// ── BOOT ──────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
